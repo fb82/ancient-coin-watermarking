@@ -3,6 +3,11 @@ weights/
 aux/
 wm_coins/
 
+aux*.png
+mod*.png
+tmp*.png
+input_image.png
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

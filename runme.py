@@ -10,6 +10,7 @@ from calculate_PSNR_SSIM import calculate_psnr as psnr
 from calculate_PSNR_SSIM import calculate_ssim as ssim
 
 from blind_watermark import WaterMark
+from trustmark import TrustMark
 
 import utils_img
 from torchvision.transforms import functional
@@ -105,13 +106,68 @@ def get_coin_image(image, show=False, box_th=0.98):
     return imc, bbox, mask, mask_base, bbox_orig
 
 
+class trustmark_watermarking:
+    def __init__(self, **args):
+        # Available modes: Q=balance, P=high visual quality, C=compact decoder, B=base from paper
+        MODE='P'
+        
+        self.tm=TrustMark(verbose=False, model_type=MODE, encoding_type=TrustMark.Encoding.BCH_5)
+
+        
+    def name(self):
+        return "trustmark watermarking"
+    
+    
+    def embed(self, tile, **args):
+        cv2.imwrite('tmp0.png', tile)
+        
+        wm = args['wm']
+        orig_w = "".join(["1" if wm[i] else "0" for i in range(len(wm))])
+
+        # encoding example
+        cover = Image.open('tmp0.png')
+        rgb = cover.convert('RGB')
+        has_alpha = cover.mode == 'RGBA'
+        if (has_alpha): alpha = cover.split()[-1]
+        
+        capacity = self.tm.schemaCapacity()
+        bitstring = orig_w
+        encoded = self.tm.encode(rgb, bitstring, MODE='binary')
+        
+        if (has_alpha):
+          encoded.putalpha(alpha)
+
+        outfile = 'tmp1.png'
+        encoded.save(outfile, exif=cover.info.get('exif'), icc_profile=cover.info.get('icc_profile'), dpi=cover.info.get('dpi'))
+
+        tile = cv2.imread('tmp1.png', cv2.IMREAD_COLOR)
+        
+        return tile
+    
+    
+    def extract(self, tile, **args):
+        cv2.imwrite('aux0.png', tile)        
+      
+        stego = Image.open('aux0.png').convert('RGB')
+        wm_secret, wm_present, wm_schema = self.tm.decode(stego, MODE='binary')
+        
+        os.remove('aux0.png')        
+        
+        if wm_present:
+            wm_l = args['wm_l']
+            return [True if wm_secret[i] == '1' else False for i in range(wm_l)]            
+        else:
+            return None
+      
+
 class blind_watermarking:
     def name(self):
         return "blind watermarking"
     
     
     def embed(self, tile, **args):
-        cv2.imwrite('tmp0.png', tile)
+        cv2.imwrite('tmp0.png', tile)        
+        wm = args['wm']
     
         bwm1 = WaterMark(password_img=1, password_wm=1)
         bwm1.read_img('tmp0.png')
@@ -123,14 +179,15 @@ class blind_watermarking:
         return tile
     
     
-    def extract(self, tile, wm_l=None, **args):
+    def extract(self, tile, **args):
         cv2.imwrite('aux0.png', tile)        
+        wm_l = args['wm_l']
       
         bwm1 = WaterMark(password_img=1, password_wm=1)
         return bwm1.extract('aux0.png', wm_shape=wm_l, mode='bit')
     
 
-def inject_blind_watermark(image_in, image_out='blind_watermark.jpg', wm=[True, False], use_mask=True, tile_size=None, how=None):    
+def inject_blind_watermark(image_in, image_out='blind_watermark.jpg', wm=[True, False], use_mask=False, tile_size=None, how=None):    
     if use_mask:
         img, bbox, *_  = get_coin_image(image_in)
         orig = img.copy()
@@ -150,7 +207,7 @@ def inject_blind_watermark(image_in, image_out='blind_watermark.jpg', wm=[True, 
             if (ii > img.shape[0]) or (jj > img.shape[1]): continue
                 
             tile = img[i:ii, j:jj]            
-            img[i:ii, j:jj] = how.embed(tile)
+            img[i:ii, j:jj] = how.embed(tile, wm=wm)
     
     if use_mask:
         orig[bbox[2]:bbox[3], bbox[0]:bbox[1]] = img
@@ -165,7 +222,7 @@ def inject_blind_watermark(image_in, image_out='blind_watermark.jpg', wm=[True, 
     return
 
 
-def extract_blind_watermark(image, wm_l=2, use_mask=True, tile_size=None, how=None):
+def extract_blind_watermark(image, wm_l=2, use_mask=False, tile_size=None, how=None):
     if use_mask:
         img, bbox, *_  = get_coin_image(image)
         img = img[bbox[2]:bbox[3], bbox[0]:bbox[1]]
@@ -178,6 +235,9 @@ def extract_blind_watermark(image, wm_l=2, use_mask=True, tile_size=None, how=No
         
     h = {}
 
+    if tile_size[0] == 0:
+        print("doh!")
+
     for i in range(0, img.shape[0], tile_size[0]):
         for j in range(0, img.shape[1], tile_size[1]):
             ii = i+tile_size[0]
@@ -189,18 +249,20 @@ def extract_blind_watermark(image, wm_l=2, use_mask=True, tile_size=None, how=No
 
             wm_extract = how.extract(tile, wm_l=wm_l)
 
+            if wm_extract is None: continue
+
             l = ('').join(['0' if not(i) else '1' for i in wm_extract])
 
             if l in h: h[l] += 1
             else: h[l] = 1            
             
+    if len(h) == 0: return None
+            
     kk = list(h.keys())
     v = np.asarray([h[k] for k in kk])
     s = np.argsort(-v)[0]    
     w = kk[s]
-    
-    os.remove('aux0.png')
-    
+        
     return [w[i] == '1' for i in range(len(w))]     
 
 
@@ -231,7 +293,7 @@ attacks = [{'attack': 'none'}] \
     + [{'attack': 'random_noise', 'var': v} for v in [0.01, 0.02]] \
     + [{'attack': 'overlay emoji', 'emoji_size': s, 'y_pos': 0.5} for s in [0.15, 0.25, 0.35]] \
     + [{'attack': 'overlay emoji', 'emoji_path': 'wm_logo.png', 'y_pos': y, 'x_pos': x} for y in [0.5, 0.35, 0.65] for x in [0.4, 0.6]] \
-    + [{'attack': 'rotation', 'angle': r, 'fill': [255, 255, 255]} for r in [15, 30, 45]] \
+    + [{'attack': 'rotation', 'angle': r, 'fill': [255, 255, 255]} for r in [2, 15, 30, 45]] \
     + [{'attack': 'center crop', 'scale': s} for s in [0.25, 0.35, 0.5, 0.75, 0.8, 1.2, 1.5]] \
     + [{'attack': 'resize', 'scale': s} for s in [0.5, 0.75, 0.9, 1.1, 1.25]] \
     + [{'attack': 'blur', 'kernel_size': h} for h in [5, 11, 15, 21]] \
@@ -253,7 +315,12 @@ l = len(wm)
 # border to increase the bounding box
 b = 25
 
+# tile size
+tl = None
+
 w_method = blind_watermarking()
+# w_method = trustmark_watermarking()
+
 crop_image = True
 
 qv = {}
@@ -276,7 +343,7 @@ for image in images:
     else:
         in_image = image
 
-    inject_blind_watermark(in_image, wm=wm, image_out=omage, use_mask=False, tile_size=None, how=w_method)
+    inject_blind_watermark(in_image, wm=wm, image_out=omage, tile_size=tl, how=w_method)
 
     im_orig = cv2.imread(in_image).astype(np.single)
     ow_image = cv2.imread(omage).astype(np.single)
@@ -301,10 +368,14 @@ for image in images:
         tw_image.save(t_image)
         im_wmrk = cv2.imread(t_image).astype(np.single)
 
-        extracted_wm = extract_blind_watermark(t_image, wm_l=l, use_mask=False, tile_size=None, how=w_method)
+        extracted_wm = extract_blind_watermark(t_image, wm_l=l, tile_size=tl, how=w_method)
           
-        extr_w = "".join(["1" if extracted_wm[i] else "0" for i in range(len(extracted_wm))])
-        v = np.sum(np.asarray(wm) == np.asarray(extracted_wm)) / l    
+        if extracted_wm is None:
+            extr_w = None
+            v = 0
+        else:
+            extr_w = "".join(["1" if extracted_wm[i] else "0" for i in range(len(extracted_wm))])
+            v = np.sum(np.asarray(wm) == np.asarray(extracted_wm)) / l    
     
         qt[attack_name + " (" + str(q)  + ")"] = {'msg': extr_w, 'correct bits': v}
     
