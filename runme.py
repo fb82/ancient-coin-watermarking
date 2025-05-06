@@ -1,4 +1,5 @@
 import os
+import sys
 from os.path import expanduser
 from PIL import Image
 import cv2
@@ -9,10 +10,8 @@ import numpy as np
 from calculate_PSNR_SSIM import calculate_psnr as psnr
 from calculate_PSNR_SSIM import calculate_ssim as ssim
 
-from blind_watermark import WaterMark
-from trustmark import TrustMark
-
 import utils_img
+import torch
 from torchvision.transforms import functional
 from augly.image import functional as aug_functional
 
@@ -106,12 +105,13 @@ def get_coin_image(image, show=False, box_th=0.98):
     return imc, bbox, mask, mask_base, bbox_orig
 
 
+from trustmark import TrustMark
+
 class trustmark_watermarking:
-    def __init__(self, **args):
+    def __init__(self, mode='P'):
         # Available modes: Q=balance, P=high visual quality, C=compact decoder, B=base from paper
-        MODE='P'
         
-        self.tm=TrustMark(verbose=False, model_type=MODE, encoding_type=TrustMark.Encoding.BCH_5)
+        self.tm=TrustMark(verbose=False, model_type=mode, encoding_type=TrustMark.Encoding.BCH_5)
 
         
     def name(self):
@@ -160,6 +160,8 @@ class trustmark_watermarking:
             return None
       
 
+from blind_watermark import WaterMark
+
 class blind_watermarking:
     def name(self):
         return "blind watermarking"
@@ -185,9 +187,26 @@ class blind_watermarking:
       
         bwm1 = WaterMark(password_img=1, password_wm=1)
         return bwm1.extract('aux0.png', wm_shape=wm_l, mode='bit')
+
+
+conf_path = os.path.split(__file__)[0]
+sys.path.append(os.path.join(conf_path, '../ssl_watermarking'))
+    
+import encode as sslw_encode
+import evaluate as sslw_evaluate
+import utils as sslw_utils
+import utils_img as sslw_utils_img
+
+
+class ssl_watermarking:
+    def name(self):
+        return "ssl watermarking"    
+
+    def __init__(self, **args):
+        print("todo")
     
 
-def inject_blind_watermark(image_in, image_out='blind_watermark.jpg', wm=[True, False], use_mask=False, tile_size=None, how=None):    
+def inject_watermark(image_in, image_out='blind_watermark.jpg', wm=[True, False], use_mask=False, tile_size=None, how=None):    
     if use_mask:
         img, bbox, *_  = get_coin_image(image_in)
         orig = img.copy()
@@ -222,7 +241,7 @@ def inject_blind_watermark(image_in, image_out='blind_watermark.jpg', wm=[True, 
     return
 
 
-def extract_blind_watermark(image, wm_l=2, use_mask=False, tile_size=None, how=None):
+def extract_watermark(image, wm_l=2, use_mask=False, tile_size=None, how=None):
     if use_mask:
         img, bbox, *_  = get_coin_image(image)
         img = img[bbox[2]:bbox[3], bbox[0]:bbox[1]]
@@ -318,8 +337,8 @@ b = 25
 # tile size
 tl = None
 
-w_method = blind_watermarking()
-# w_method = trustmark_watermarking()
+# w_method = blind_watermarking()
+w_method = trustmark_watermarking()
 
 crop_image = True
 
@@ -343,7 +362,7 @@ for image in images:
     else:
         in_image = image
 
-    inject_blind_watermark(in_image, wm=wm, image_out=omage, tile_size=tl, how=w_method)
+    inject_watermark(in_image, wm=wm, image_out=omage, tile_size=tl, how=w_method)
 
     im_orig = cv2.imread(in_image).astype(np.single)
     ow_image = cv2.imread(omage).astype(np.single)
@@ -368,7 +387,7 @@ for image in images:
         tw_image.save(t_image)
         im_wmrk = cv2.imread(t_image).astype(np.single)
 
-        extracted_wm = extract_blind_watermark(t_image, wm_l=l, tile_size=tl, how=w_method)
+        extracted_wm = extract_watermark(t_image, wm_l=l, tile_size=tl, how=w_method)
           
         if extracted_wm is None:
             extr_w = None
