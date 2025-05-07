@@ -2,6 +2,7 @@ bench_data/
 weights/
 aux/
 wm_coins/
+sslw/
 
 aux*.png
 mod*.png
