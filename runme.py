@@ -368,6 +368,74 @@ class ssl_watermarking:
         return decoded_data[0]['msg']
 
         
+from imwatermark import WatermarkEncoder
+from imwatermark import WatermarkDecoder
+
+class invisible_watermarking:
+    def name(self):
+        return self.method + " watermarking"
+    
+    def __init__(self, **args):    
+        self.wm_l = 30        
+        if "wm_l" in args: self.wm_l = args["wm_l"]
+        
+        self.method = 'rivaGan' # dwtDct|dwtDctSvd|rivaGan
+        if "method" in args: self.method = args['method']
+        
+        if self.method == 'rivaGan':
+            WatermarkEncoder.loadModel()
+            WatermarkDecoder.loadModel()
+            
+            
+    def embed(self, tile, **args):
+        cv2.imwrite('tmp0.png', tile)        
+        wm = args['wm']
+
+        bgr = cv2.imread('tmp0.png', cv2.IMREAD_COLOR)
+        
+        if self.method == 'rivaGan':
+            wm_ = [False] * 32
+            for i, v in enumerate(range(len(wm))):
+                wm_[i] = v
+            wm = wm_
+
+        wm = [1 if v else 0 for v in wm]
+
+        encoder = WatermarkEncoder()        
+        encoder.set_watermark('bits', wm)
+        bgr_encoded = encoder.encode(bgr, self.method)
+        cv2.imwrite('tmp1.png', bgr_encoded)
+    
+        tile = cv2.imread('tmp1.png', cv2.IMREAD_COLOR)
+        
+        os.remove('tmp0.png')          
+        os.remove('tmp1.png')          
+        
+        return tile
+    
+    
+    def extract(self, tile, **args):
+        cv2.imwrite('aux0.png', tile)        
+
+        wm_l = None
+        if "wm_l" in args: wm_l = args["wm_l"]
+        if wm_l is None: wm_l = self.wm_l  
+        
+        wm_l_ = wm_l
+        if self.method == 'rivaGan': wm_l_ = 32
+        
+        bgr = cv2.imread('aux0.png', cv2.IMREAD_COLOR)
+        
+        decoder = WatermarkDecoder('bits', wm_l_)
+        watermark = decoder.decode(bgr, self.method)
+        wtm = [True if v else False for v in watermark]
+        wtm = wtm[:wm_l]
+                
+        os.remove('aux0.png')
+
+        return wtm
+
+
 def inject_watermark(image_in, image_out='blind_watermark.jpg', wm=[True, False], use_mask=False, tile_size=None, how=None):    
     if use_mask:
         img, bbox, *_  = get_coin_image(image_in)
@@ -498,7 +566,10 @@ tl = None
 
 # w_method = ssl_watermarking(wm_l=l)
 # w_method = blind_watermarking(wm_l=l)
-w_method = trustmark_watermarking(wm_l=l)
+# w_method = trustmark_watermarking(wm_l=l)
+# w_method = invisible_watermarking(method='dwtDct', wm_l=l)
+# w_method = invisible_watermarking(method='dwtDctSvd', wm_l=l)
+w_method = invisible_watermarking(method='rivaGan', wm_l=l)         # to fix :@
 
 crop_image = True
 
