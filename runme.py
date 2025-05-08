@@ -395,7 +395,7 @@ class invisible_watermarking:
         
         if self.method == 'rivaGan':
             wm_ = [False] * 32
-            for i, v in enumerate(range(len(wm))):
+            for i, v in enumerate(wm):
                 wm_[i] = v
             wm = wm_
 
@@ -569,7 +569,7 @@ tl = None
 # w_method = trustmark_watermarking(wm_l=l)
 # w_method = invisible_watermarking(method='dwtDct', wm_l=l)
 # w_method = invisible_watermarking(method='dwtDctSvd', wm_l=l)
-w_method = invisible_watermarking(method='rivaGan', wm_l=l)         # to fix :@
+w_method = invisible_watermarking(method='rivaGan', wm_l=l)
 
 crop_image = True
 
