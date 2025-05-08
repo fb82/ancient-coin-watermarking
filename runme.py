@@ -1,12 +1,20 @@
 import os
 import sys
-from PIL import Image
+from PIL import Image,ImageOps
 import cv2
 import matplotlib.pyplot as plt
 import matplotlib.patches as pplt
 import numpy as np
 import wget
 import argparse
+from onedrivedownloader import download as onedrive_download
+from skimage.transform import resize as skimage_resize
+
+import bchlib
+import tensorflow as tf
+import tensorflow.image
+from tensorflow.python.saved_model import tag_constants
+from tensorflow.python.saved_model import signature_constants
 
 from calculate_PSNR_SSIM import calculate_psnr as psnr
 from calculate_PSNR_SSIM import calculate_ssim as ssim
@@ -218,7 +226,7 @@ class blind_watermarking:
 
 
 conf_path = os.path.split(__file__)[0]
-sys.path.append(os.path.join(conf_path, '../ssl_watermarking'))
+sys.path.append(os.path.join(conf_path, './ssl_watermarking'))
     
 import encode as sslw_encode
 import decode as sslw_decode
@@ -436,6 +444,168 @@ class invisible_watermarking:
         return wtm
 
 
+conf_path = os.path.split(__file__)[0]
+sys.path.append(os.path.join(conf_path, './stegastamp'))
+    
+class stegastamp_watermarking:
+    def name(self):
+        return "stegastamp watermarking"    
+
+    def __init__(self, **args):
+        # Set seeds for reproductibility
+        torch.manual_seed(0)
+        np.random.seed(0)
+        
+        self.off = 5
+        self.wm_l = 30        
+        if "wm_l" in args: self.wm_l = args["wm_l"]               
+        
+        os.makedirs("stegam", exist_ok=True)
+        
+        to_check = [
+            [
+                "stegam/saved_models",
+                "https://unipa-my.sharepoint.com/:u:/g/personal/fabio_bellavia_unipa_it/ESjEjrcKYldLu-uyAnuAmLgB9Ckn-5utd9QcX4GMerdGcQ?e=xe58p8"
+            ],
+        ]
+        
+        for path, link in to_check:
+            if not os.path.isdir(path):
+                onedrive_download(link, filename="stegam/stegastamp_model.zip", unzip=True, unzip_path='stegam')
+                
+        model ="stegam/saved_models/stegastamp_pretrained"
+        self.sess = tf.compat.v1.InteractiveSession(graph=tf.Graph())
+        self.model = tf.compat.v1.saved_model.loader.load(self.sess, [tag_constants.SERVING], model)
+
+        input_secret_name = self.model.signature_def[signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY].inputs['secret'].name
+        input_image_name = self.model.signature_def[signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY].inputs['image'].name
+        self.input_secret = tf.compat.v1.get_default_graph().get_tensor_by_name(input_secret_name)
+        self.input_image = tf.compat.v1.get_default_graph().get_tensor_by_name(input_image_name)
+    
+        output_stegastamp_name = self.model.signature_def[signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY].outputs['stegastamp'].name
+        output_residual_name = self.model.signature_def[signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY].outputs['residual'].name
+        self.output_stegastamp = tf.compat.v1.get_default_graph().get_tensor_by_name(output_stegastamp_name)
+        self.output_residual = tf.compat.v1.get_default_graph().get_tensor_by_name(output_residual_name)
+
+        output_secret_name = self.model.signature_def[signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY].outputs['decoded'].name
+        self.output_secret = tf.compat.v1.get_default_graph().get_tensor_by_name(output_secret_name)
+    
+        self.width = 400
+        self.height = 400
+
+        self.BCH_POLYNOMIAL = 137
+        self.BCH_BITS = 5
+    
+        self.bch = bchlib.BCH(self.BCH_BITS, prim_poly=self.BCH_POLYNOMIAL)
+                
+                
+    def embed(self, tile, **args):
+        wm = args['wm']
+
+        wm_ = [False] * 56
+        for i, v in enumerate(wm):
+            wm_[i] = v
+        wm = wm_
+        wm = [1 if v else 0 for v in wm]
+
+        wsecret = np.packbits(np.asarray(wm)).tobytes()
+        
+        data = bytearray(wsecret)
+        ecc = self.bch.encode(data)
+        packet = data + ecc
+    
+        packet_binary = ''.join(format(x, '08b') for x in packet)
+        secret = [int(x) for x in packet_binary]
+        secret.extend([0,0,0,0])
+    
+        cv2.imwrite('tmp0.png', tile)       
+        # size = (self.width, self.height)
+        
+        image = Image.open('tmp0.png').convert("RGB")  
+        orig_image = np.array(image, copy=True, dtype=np.float32) / 255.
+                
+        image = np.array(image, dtype=np.float32) / 255.
+        # image = skimage_resize(image, (self.height, self.width), anti_aliasing=True)
+
+        offy = (image.shape[0] - self.height) // 2
+        offx = (image.shape[1] - self.width) // 2
+        image = image[offy:offy+self.height, offx:offx+self.width]
+    
+        feed_dict = {self.input_secret:[secret],
+                     self.input_image:[image]}
+    
+        hidden_img, residual = self.sess.run([self.output_stegastamp, self.output_residual], feed_dict=feed_dict)
+    
+        # rescaled = (hidden_img[0] * 255).astype(np.uint8)
+        # residual = residual[0]+.5
+        # residual = (residual * 255).astype(np.uint8)
+
+        # diff = hidden_img[0] - image
+        # diff_resized = skimage_resize(diff, orig_image.shape[:2], anti_aliasing=True)
+        # final_image = ((orig_image + diff_resized) * 255).astype(np.uint8)         
+
+        # rescaled = hidden_img[0]
+        # rescaled_resized = skimage_resize(rescaled, orig_image.shape[:2], anti_aliasing=True)
+        # final_image = (rescaled_resized * 255).astype(np.uint8)         
+
+        o = self.off
+        orig_image[offy+o:offy+self.height-o, offx+o:offx+self.width-o] = hidden_img[0][o:-o,o:-o]
+        final_image = (orig_image * 255).astype(np.uint8)      
+
+        im = Image.fromarray(np.array(final_image))
+        im.save('tmp1.png')
+
+        tile = cv2.imread('tmp1.png', cv2.IMREAD_COLOR)
+        
+        os.remove('tmp0.png')          
+        os.remove('tmp1.png')          
+
+        return tile
+
+        
+    def extract(self, tile, **args):    
+        offy = (tile.shape[0] - self.height) // 2
+        offx = (tile.shape[1] - self.width) // 2
+        
+        pady = 0 if (offy >= 0) else -offy
+        padx = 0 if (offx >= 0) else -offx
+
+        tile = np.pad(tile, ((pady, pady), (padx, padx), (0, 0)), 'constant', constant_values=0)
+        
+        offy = max(0, offy)
+        offx = max(0, offx)
+                
+        tile_ = tile[offy:offy+self.height, offx:offx+self.width]
+
+        # tile_ = skimage_resize(tile.astype(np.float32) / 255., (self.height, self.width), anti_aliasing=True)
+        
+        cv2.imwrite('aux0.png', tile_.astype(np.uint8))
+        image = np.array(Image.open('aux0.png').convert("RGB"), dtype=np.float32) / 255
+        
+        feed_dict = {self.input_image:[image]}
+
+        secret = self.sess.run([self.output_secret], feed_dict=feed_dict)[0][0]
+
+        packet_binary = "".join([str(int(bit)) for bit in secret[:96]])
+        # packet = bytes(int(packet_binary[i : i + 8], 2) for i in range(0, len(packet_binary), 8))
+        # packet = bytearray(packet)
+
+        # data, ecc = packet[:-self.bch.ecc_bytes], packet[-self.bch.ecc_bytes:]
+        # bitflips = self.bch.decode(data, ecc)
+        # if bitflips != -1: print("errors in message!")
+
+        wm_l = None
+        if "wm_l" in args: wm_l = args["wm_l"]
+        if wm_l is None: wm_l = self.wm_l  
+
+        z = packet_binary[:wm_l]
+        msg = [True if v == '1' else False for v in z]
+
+        os.remove('aux0.png')
+                
+        return msg
+
+
 def inject_watermark(image_in, image_out='blind_watermark.jpg', wm=[True, False], use_mask=False, tile_size=None, how=None):    
     if use_mask:
         img, bbox, *_  = get_coin_image(image_in)
@@ -526,17 +696,19 @@ attacks_dict = {
     "resize": utils_img.resize,
     "center crop": utils_img.center_crop,
     "overlay emoji": aug_functional.overlay_emoji,
-    "random_noise": aug_functional.random_noise, 
+    "random noise": aug_functional.random_noise, 
     "sharpen": aug_functional.sharpen,
     "generic crop": aug_functional.crop,
+    "aspect ratio": aug_functional.change_aspect_ratio,
 }
 
 attacks = [{'attack': 'none'}] \
+    + [{'attack': 'aspect ratio', 'ratio': r} for r in [0.95, 0.85, 1.05, 1.15]] \
     + [{'attack': 'generic crop', 'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2} for x1 in [0.25, 0] for x2 in [0.8, 1] for y1 in [0.3, 0] for y2 in [0.85, 1]] \
     + [{'attack': 'vflip'}] \
     + [{'attack': 'hflip'}] \
     + [{'attack': 'sharpen', 'factor': f} for f in [1.5, 3, 7, 10]] \
-    + [{'attack': 'random_noise', 'var': v} for v in [0.01, 0.02]] \
+    + [{'attack': 'random noise', 'var': v} for v in [0.01, 0.02]] \
     + [{'attack': 'overlay emoji', 'emoji_size': s, 'y_pos': 0.5} for s in [0.15, 0.25, 0.35]] \
     + [{'attack': 'overlay emoji', 'emoji_path': 'data/wm_logo.png', 'y_pos': y, 'x_pos': x} for y in [0.5, 0.35, 0.65] for x in [0.4, 0.6]] \
     + [{'attack': 'rotation', 'angle': r, 'fill': [255, 255, 255]} for r in [2, 15, 30, 45]] \
@@ -564,12 +736,13 @@ b = 25
 # tile size
 tl = None
 
-# w_method = ssl_watermarking(wm_l=l)
+w_method = ssl_watermarking(wm_l=l)
 # w_method = blind_watermarking(wm_l=l)
 # w_method = trustmark_watermarking(wm_l=l)
 # w_method = invisible_watermarking(method='dwtDct', wm_l=l)
 # w_method = invisible_watermarking(method='dwtDctSvd', wm_l=l)
-w_method = invisible_watermarking(method='rivaGan', wm_l=l)
+# w_method = invisible_watermarking(method='rivaGan', wm_l=l)
+# w_method = stegastamp_watermarking(wm_l=l)
 
 crop_image = True
 

@@ -1,0 +1,6 @@
+[submodule "stegastamp"]
+	path = stegastamp
+	url = https://github.com/tancik/StegaStamp.git
+[submodule "ssl_watermarking"]
+	path = ssl_watermarking
+	url = https://github.com/facebookresearch/ssl_watermarking.git
