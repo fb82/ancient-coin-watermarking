@@ -736,13 +736,13 @@ b = 25
 # tile size
 tl = None
 
-w_method = ssl_watermarking(wm_l=l)
+# w_method = ssl_watermarking(wm_l=l)
 # w_method = blind_watermarking(wm_l=l)
 # w_method = trustmark_watermarking(wm_l=l)
 # w_method = invisible_watermarking(method='dwtDct', wm_l=l)
 # w_method = invisible_watermarking(method='dwtDctSvd', wm_l=l)
 # w_method = invisible_watermarking(method='rivaGan', wm_l=l)
-# w_method = stegastamp_watermarking(wm_l=l)
+w_method = stegastamp_watermarking(wm_l=l)
 
 crop_image = True
 
