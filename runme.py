@@ -7,6 +7,7 @@ import matplotlib.patches as pplt
 import numpy as np
 import wget
 import gdown
+import zipfile
 import argparse
 from onedrivedownloader import download as onedrive_download
 from skimage.transform import resize as skimage_resize
@@ -16,6 +17,7 @@ import tensorflow as tf
 import tensorflow.image
 from tensorflow.python.saved_model import tag_constants
 from tensorflow.python.saved_model import signature_constants
+import torchvision.transforms.functional as TF
 
 from calculate_PSNR_SSIM import calculate_psnr as psnr
 from calculate_PSNR_SSIM import calculate_ssim as ssim
@@ -244,28 +246,28 @@ class ssl_watermarking:
         torch.manual_seed(0)
         np.random.seed(0)
         
-        os.makedirs("sslw/models", exist_ok=True)
-        os.makedirs("sslw/normlayers", exist_ok=True)
+        os.makedirs("sslwm/models", exist_ok=True)
+        os.makedirs("sslwm/normlayers", exist_ok=True)
         
         to_check = [
             [
-                "sslw/models/dino_r50_plus.pth",
+                "sslwm/models/dino_r50_plus.pth",
                 "https://dl.fbaipublicfiles.com/ssl_watermarking/dino_r50_plus.pth",
             ],
             [            
-                "sslw/normlayers/out2048_yfcc_orig.pth",
+                "sslwm/normlayers/out2048_yfcc_orig.pth",
                 "https://dl.fbaipublicfiles.com/ssl_watermarking/out2048_yfcc_orig.pth",
             ],
             [
-                "sslw/normlayers/out2048_yfcc_resized.pth",
+                "sslwm/normlayers/out2048_yfcc_resized.pth",
                 "https://dl.fbaipublicfiles.com/ssl_watermarking/out2048_yfcc_resized.pth",
             ],
             [
-                "sslw/normlayers/out2048_coco_orig.pth",
+                "sslwm/normlayers/out2048_coco_orig.pth",
                 "https://dl.fbaipublicfiles.com/ssl_watermarking/out2048_coco_orig.pth",
             ],
             [
-                "sslw/normlayers/out2048_coco_resized.pth",
+                "sslwm/normlayers/out2048_coco_resized.pth",
                 "https://dl.fbaipublicfiles.com/ssl_watermarking/out2048_coco_resized.pth",
             ],
         ]
@@ -274,10 +276,10 @@ class ssl_watermarking:
             if not os.path.isfile(file):
                 wget.download(link, out=file)
             
-        self.model_path = "sslw/models/dino_r50_plus.pth"
+        self.model_path = "sslwm/models/dino_r50_plus.pth"
         self.model_name = 'resnet50'
-        self.normlayer_path = "sslw/normlayers/out2048_yfcc_orig.pth"
-        self.carrier_dir = "sslw/carriers"
+        self.normlayer_path = "sslwm/normlayers/out2048_yfcc_orig.pth"
+        self.carrier_dir = "sslwm/carriers"
         self.device = "cuda"
         self.num_bits = 32
         self.data_augmentation = True
@@ -458,6 +460,8 @@ class stegastamp_watermarking:
         np.random.seed(0)
         
         self.off = 5
+        if "off" in args: self.off = args["off"]
+                
         self.wm_l = 30        
         if "wm_l" in args: self.wm_l = args["wm_l"]               
         
@@ -610,13 +614,22 @@ class stegastamp_watermarking:
 conf_path = os.path.split(__file__)[0]
 sys.path.append(os.path.join(conf_path, 'arwgan'))
     
+import arwgan.utils as arwgan_utils
+import model.ARWGAN as arwgan
+
 class arwgan_watermarking:
     def name(self):
         return "arwgan watermarking"    
 
     def __init__(self, **args):        
-        self.wm_l = 30        
+        self.wm_l = 30   
         if "wm_l" in args: self.wm_l = args["wm_l"]               
+
+        self.device = 'cuda'
+        if "device" in args: self.device = args["device"]
+
+        if self.device != 'cpu': 
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         os.makedirs("arwganm", exist_ok=True)
         
@@ -630,16 +643,81 @@ class arwgan_watermarking:
         for path, link in to_check:
             if not os.path.isdir(path):
                 gdown.download(link, "arwganm/pretrain.zip", fuzzy=True)
-                                
                 
+            with zipfile.ZipFile("arwganm/pretrain.zip", "r") as zip_ref:
+                zip_ref.extractall("arwganm")
+
+        with torch.no_grad():
+            _, self.net_config, noise_config = arwgan_utils.load_options('arwganm/pretrain/options-and-config.pickle')
+            noise_config = []
+            noiser = arwgan.Noiser(noise_config, self.device)
+    
+            checkpoint = torch.load("arwganm/pretrain/checkpoints/ARWGAN.pyt", map_location=torch.device('cpu'))
+            self.hidden_net = arwgan.ARWGAN(self.net_config, self.device, noiser, None)
+            
+            arwgan_utils.model_from_checkpoint(self.hidden_net, checkpoint)
+            self.hidden_net.encoder_decoder.eval()
+
+
     def embed(self, tile, **args):
+        cv2.imwrite('tmp0.png', tile)        
         wm = args['wm']
 
+        image_pil = Image.open('tmp0.png')
+        image = TF.to_tensor(image_pil).to(self.device)
+        image_ = image * 2 - 1
         
+        wm_ = [False] * self.net_config.message_length
+        for i, v in enumerate(wm):
+            wm_[i] = v
+        wm = wm_
+
+        wm = [1 if v else 0 for v in wm]
+
+        with torch.no_grad():
+            image_ = image_.unsqueeze_(0)
+            message = torch.Tensor(wm).unsqueeze(0).to(self.device)
+            enc_img = self.hidden_net.encoder_decoder.encoder(image_, message)
+           
+        image = enc_img.squeeze(0)  
+        image = ((image + 1) * 127.5).round().clip(0, 255).permute(1, 2, 0).to('cpu').numpy().astype(np.uint8)
+
+        im = Image.fromarray(np.array(image))
+        im.save('tmp1.png')
+
+        tile = cv2.imread('tmp1.png', cv2.IMREAD_COLOR)
+
+        os.remove('tmp0.png')          
+        os.remove('tmp1.png')   
+
+        return tile               
+        
+            
     def extract(self, tile, **args):    
         wm_l = None
         if "wm_l" in args: wm_l = args["wm_l"]
         if wm_l is None: wm_l = self.wm_l  
+          
+        cv2.imwrite('aux0.png', tile.astype(np.uint8))
+
+        image_pil = Image.open('aux0.png')
+        image = TF.to_tensor(image_pil).to(self.device)
+        image = (image * 2 - 1).unsqueeze(0)
+
+        with torch.no_grad():
+            decoded_messages = self.hidden_net.encoder_decoder.decoder(image).squeeze(0)
+            packet_binary = decoded_messages.detach().cpu().numpy().round().clip(0, 1)
+
+        wm_l = None
+        if "wm_l" in args: wm_l = args["wm_l"]
+        if wm_l is None: wm_l = self.wm_l  
+
+        z = packet_binary[:wm_l].astype(int)
+        msg = [True if v == 1 else False for v in z]
+
+        os.remove('aux0.png')
+                
+        return msg
 
 
 def inject_watermark(image_in, image_out='blind_watermark.jpg', wm=[True, False], use_mask=False, tile_size=None, how=None):    
@@ -762,8 +840,8 @@ opath = 'wm_coins'
 os.makedirs(opath, exist_ok=True)
 
 # watermark key
-wm = [False, True, False, False, True, True, False, True]
-orig_w = "".join(["1" if wm[i] else "0" for i in range(len(wm))])
+orig_w = "01001101"
+wm = [True if v == '1' else False for v in orig_w]
 l = len(wm)
 
 # border to increase the bounding box
@@ -772,23 +850,25 @@ b = 25
 # tile size
 tl = None
 
-# w_method = ssl_watermarking(wm_l=l)
+w_method = ssl_watermarking(wm_l=l)
 # w_method = blind_watermarking(wm_l=l)
 # w_method = trustmark_watermarking(wm_l=l)
 # w_method = invisible_watermarking(method='dwtDct', wm_l=l)
 # w_method = invisible_watermarking(method='dwtDctSvd', wm_l=l)
 # w_method = invisible_watermarking(method='rivaGan', wm_l=l)
 # w_method = stegastamp_watermarking(wm_l=l)
-w_method = arwgan_watermarking(wm_l=l)
+# w_method = arwgan_watermarking(wm_l=l)
 
 
 crop_image = True
+unlossy = True
 
 qv = {}
 
 images = list_images(ipath)
 for image in images:
     omage = os.path.join(opath, os.path.split(image)[-1])
+    if unlossy: omage = omage[:-4] + '.png'
 
     if crop_image:
         in_image = 'input_image.png'

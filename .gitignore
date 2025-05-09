@@ -1,10 +1,11 @@
-bench_data/
-weights/
-aux/
+# aux folders created at runtime
 wm_coins/
-sslw/
+sslwm/
 stegam/
+arwganm/
+sslw_tmp/
 
+# aux files created at runtime
 aux*.png
 mod*.png
 tmp*.png
