@@ -4,3 +4,6 @@
 [submodule "ssl_watermarking"]
 	path = ssl_watermarking
 	url = https://github.com/facebookresearch/ssl_watermarking.git
+[submodule "arwgan"]
+	path = arwgan
+	url = https://github.com/river-huang/ARWGAN.git

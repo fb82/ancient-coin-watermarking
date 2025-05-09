@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as pplt
 import numpy as np
 import wget
+import gdown
 import argparse
 from onedrivedownloader import download as onedrive_download
 from skimage.transform import resize as skimage_resize
@@ -226,7 +227,7 @@ class blind_watermarking:
 
 
 conf_path = os.path.split(__file__)[0]
-sys.path.append(os.path.join(conf_path, './ssl_watermarking'))
+sys.path.append(os.path.join(conf_path, 'ssl_watermarking'))
     
 import encode as sslw_encode
 import decode as sslw_decode
@@ -445,7 +446,7 @@ class invisible_watermarking:
 
 
 conf_path = os.path.split(__file__)[0]
-sys.path.append(os.path.join(conf_path, './stegastamp'))
+sys.path.append(os.path.join(conf_path, 'stegastamp'))
     
 class stegastamp_watermarking:
     def name(self):
@@ -606,6 +607,41 @@ class stegastamp_watermarking:
         return msg
 
 
+conf_path = os.path.split(__file__)[0]
+sys.path.append(os.path.join(conf_path, 'arwgan'))
+    
+class arwgan_watermarking:
+    def name(self):
+        return "arwgan watermarking"    
+
+    def __init__(self, **args):        
+        self.wm_l = 30        
+        if "wm_l" in args: self.wm_l = args["wm_l"]               
+        
+        os.makedirs("arwganm", exist_ok=True)
+        
+        to_check = [
+            [
+                "arwganm/pretrain",
+                "https://drive.google.com/file/d/1jDpF0LBmuFiy4PNvqaaz7vXyHCbHA4ao/view?usp=drive_link"
+            ],
+        ]
+        
+        for path, link in to_check:
+            if not os.path.isdir(path):
+                gdown.download(link, "arwganm/pretrain.zip", fuzzy=True)
+                                
+                
+    def embed(self, tile, **args):
+        wm = args['wm']
+
+        
+    def extract(self, tile, **args):    
+        wm_l = None
+        if "wm_l" in args: wm_l = args["wm_l"]
+        if wm_l is None: wm_l = self.wm_l  
+
+
 def inject_watermark(image_in, image_out='blind_watermark.jpg', wm=[True, False], use_mask=False, tile_size=None, how=None):    
     if use_mask:
         img, bbox, *_  = get_coin_image(image_in)
@@ -742,7 +778,9 @@ tl = None
 # w_method = invisible_watermarking(method='dwtDct', wm_l=l)
 # w_method = invisible_watermarking(method='dwtDctSvd', wm_l=l)
 # w_method = invisible_watermarking(method='rivaGan', wm_l=l)
-w_method = stegastamp_watermarking(wm_l=l)
+# w_method = stegastamp_watermarking(wm_l=l)
+w_method = arwgan_watermarking(wm_l=l)
+
 
 crop_image = True
 
