@@ -818,6 +818,7 @@ attacks_dict = {
     "aspect ratio": aug_functional.change_aspect_ratio,
 }
 
+# attacks to evaluate
 attacks = [{'attack': 'none'}] \
     + [[{'attack': 'blur', 'kernel_size': 21}, {'attack': 'resize', 'scale': 0.7}]] \
     + [{'attack': 'aspect ratio', 'ratio': r} for r in [0.95, 0.85, 1.05, 1.15]] \
@@ -837,8 +838,10 @@ attacks = [{'attack': 'none'}] \
     + [{'attack': 'brightness', 'brightness_factor': b} for b in [0.5, 1., 1.5, 2.]] \
     + [{'attack': 'hue', 'hue_factor': h} for h in [-0.5, -0.25, 0.25, 0.5]] \
 
-
+# coin images input path prefix
 ipath = 'coins'
+
+# watermarked coin images output path prefix
 opath = 'wm_coins'
 
 # watermark key
@@ -846,21 +849,21 @@ orig_w = "01001101"
 wm = [True if v == '1' else False for v in orig_w]
 l = len(wm)
 
-# border to increase the bounding box
+# border to increase the bounding box when removing the white background 
 b = 25
 
 # tile size
 tl = None
 
-# watermarking method to test
+# watermarking methods to test
 w_methods = [
     ssl_watermarking(wm_l=l),
-#   blind_watermarking(wm_l=l),
-#   trustmark_watermarking(wm_l=l),
-#   invisible_watermarking(method='dwtDct', wm_l=l),
-#   invisible_watermarking(method='dwtDctSvd', wm_l=l),
-#   invisible_watermarking(method='rivaGan', wm_l=l),
-#   stegastamp_watermarking(wm_l=l),
+    blind_watermarking(wm_l=l),
+    trustmark_watermarking(wm_l=l),
+    invisible_watermarking(method='dwtDct', wm_l=l),
+    invisible_watermarking(method='dwtDctSvd', wm_l=l),
+    invisible_watermarking(method='rivaGan', wm_l=l),
+    stegastamp_watermarking(wm_l=l),
     arwgan_watermarking(wm_l=l),
     ]
 
