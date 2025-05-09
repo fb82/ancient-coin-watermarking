@@ -1,6 +1,6 @@
 import os
 import sys
-from PIL import Image,ImageOps
+from PIL import Image
 import cv2
 import matplotlib.pyplot as plt
 import matplotlib.patches as pplt
@@ -11,6 +11,8 @@ import zipfile
 import argparse
 from onedrivedownloader import download as onedrive_download
 from skimage.transform import resize as skimage_resize
+import pickle
+from datetime import datetime
 
 import bchlib
 import tensorflow as tf
@@ -817,6 +819,7 @@ attacks_dict = {
 }
 
 attacks = [{'attack': 'none'}] \
+    + [[{'attack': 'blur', 'kernel_size': 21}, {'attack': 'resize', 'scale': 0.7}]] \
     + [{'attack': 'aspect ratio', 'ratio': r} for r in [0.95, 0.85, 1.05, 1.15]] \
     + [{'attack': 'generic crop', 'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2} for x1 in [0.25, 0] for x2 in [0.8, 1] for y1 in [0.3, 0] for y2 in [0.85, 1]] \
     + [{'attack': 'vflip'}] \
@@ -837,7 +840,6 @@ attacks = [{'attack': 'none'}] \
 
 ipath = 'coins'
 opath = 'wm_coins'
-os.makedirs(opath, exist_ok=True)
 
 # watermark key
 orig_w = "01001101"
@@ -850,26 +852,27 @@ b = 25
 # tile size
 tl = None
 
-w_method = ssl_watermarking(wm_l=l)
-# w_method = blind_watermarking(wm_l=l)
-# w_method = trustmark_watermarking(wm_l=l)
-# w_method = invisible_watermarking(method='dwtDct', wm_l=l)
-# w_method = invisible_watermarking(method='dwtDctSvd', wm_l=l)
-# w_method = invisible_watermarking(method='rivaGan', wm_l=l)
-# w_method = stegastamp_watermarking(wm_l=l)
-# w_method = arwgan_watermarking(wm_l=l)
+# watermarking method to test
+w_methods = [
+    ssl_watermarking(wm_l=l),
+#   blind_watermarking(wm_l=l),
+#   trustmark_watermarking(wm_l=l),
+#   invisible_watermarking(method='dwtDct', wm_l=l),
+#   invisible_watermarking(method='dwtDctSvd', wm_l=l),
+#   invisible_watermarking(method='rivaGan', wm_l=l),
+#   stegastamp_watermarking(wm_l=l),
+    arwgan_watermarking(wm_l=l),
+    ]
 
-
+# remove background
 crop_image = True
+
+# save watermarked output as unlossy
 unlossy = True
 
 qv = {}
-
 images = list_images(ipath)
 for image in images:
-    omage = os.path.join(opath, os.path.split(image)[-1])
-    if unlossy: omage = omage[:-4] + '.png'
-
     if crop_image:
         in_image = 'input_image.png'
         img_orig, bbox, *_  = get_coin_image(image, box_th=.0)
@@ -884,45 +887,65 @@ for image in images:
     else:
         in_image = image
 
-    inject_watermark(in_image, wm=wm, image_out=omage, tile_size=tl, how=w_method)
-
-    im_orig = cv2.imread(in_image).astype(np.single)
-    ow_image = cv2.imread(omage).astype(np.single)
-    PSNR = psnr(im_orig, ow_image)
-    SSIM = ssim(im_orig, ow_image)
-    
     k = os.path.splitext(os.path.split(image)[-1])[0]
-    qv[k] = {'PSNR': PSNR, 'SSIM': SSIM}
+    qv[k] = {}        
+    for w_method in w_methods: 
+        opath_ = opath + ' ' + w_method.name()
+        os.makedirs(opath_, exist_ok=True)
+
+        omage = os.path.join(opath_, os.path.split(image)[-1])
+        if unlossy: omage = omage[:-4] + '.png'
+
+        inject_watermark(in_image, wm=wm, image_out=omage, tile_size=tl, how=w_method)
     
-    print(f'{w_method.name()}("{os.path.split(image)[-1]}"): message = "{orig_w}"; PSNR = {PSNR:.3f}; SSIM = {SSIM *100:.3f} %')
-
-    ow_image = Image.open(omage)
-
-    qt = {}
-    for q, attack in enumerate(attacks):
-        t_image = 'mod.png'
-
-        attack = attack.copy()
-        attack_name = attack.pop('attack')
-
-        tw_image = attacks_dict[attack_name](ow_image, **attack)
-        tw_image.save(t_image)
-        im_wmrk = cv2.imread(t_image).astype(np.single)
-
-        extracted_wm = extract_watermark(t_image, tile_size=tl, how=w_method)
-          
-        if extracted_wm is None:
-            extr_w = None
-            v = 0
-        else:
-            extr_w = "".join(["1" if extracted_wm[i] else "0" for i in range(len(extracted_wm))])
-            v = np.sum(np.asarray(wm) == np.asarray(extracted_wm)) / l    
+        im_orig = cv2.imread(in_image).astype(np.single)
+        ow_image = cv2.imread(omage).astype(np.single)
+        PSNR = psnr(im_orig, ow_image)
+        SSIM = ssim(im_orig, ow_image)
+        
+        w = w_method.name()
+        qv[k][w] = {'PSNR': PSNR, 'SSIM': SSIM}
+        
+        print(f'{w}("{os.path.split(image)[-1]}"): message = "{orig_w}"; PSNR = {PSNR:.3f}; SSIM = {SSIM *100:.3f} %')
     
-        qt[attack_name + " (" + str(q)  + ")"] = {'msg': extr_w, 'correct bits': v}
+        ow_image = Image.open(omage)
     
-        print(f'{str(q)}.{attack_name}("{k}"): retrieved message = {extr_w}; {"Pass" if (v == 1) else "Failed"}')
+        qt = {}
+        for q, full_attack in enumerate(attacks):
+            t_image = 'mod.png'
+            tw_image = ow_image
+    
+            if not isinstance(full_attack, list): full_attack = [full_attack]
+            full_attack_name = ''
+    
+            for q_, attack in enumerate(full_attack):    
+                attack = attack.copy()
+                attack_name = attack.pop('attack')
+                full_attack_name += ('+' if q_ else '') + attack_name
                 
-    qv[k]['validation'] = qt
+                tw_image = attacks_dict[attack_name](tw_image, **attack)
+                tw_image.save(t_image)
+                im_wmrk = cv2.imread(t_image).astype(np.single)
     
-os.remove('input_image.png')
-os.remove('mod.png')
+            extracted_wm = extract_watermark(t_image, tile_size=tl, how=w_method)
+              
+            if extracted_wm is None:
+                extr_w = None
+                v = 0
+            else:
+                extr_w = "".join(["1" if extracted_wm[i] else "0" for i in range(len(extracted_wm))])
+                v = np.sum(np.asarray(wm) == np.asarray(extracted_wm)) / l    
+        
+            qt[full_attack_name + " (" + str(q)  + ")"] = {'msg': extr_w, 'correct bits': v}
+        
+            print(f'{str(q)}.[{full_attack_name}]("{k}"): retrieved message = {extr_w}; {"Pass" if (v == 1) else "Failed"}')
+
+            os.remove('mod.png')
+                    
+        qv[k][w]['validation'] = qt
+
+    os.remove('input_image.png')
+
+with open(datetime.today().strftime('%Y-%m-%d-%H:%M:%S') + '.pkl', 'wb') as f:
+    pickle.dump(qv, f)          
+        
