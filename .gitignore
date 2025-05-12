@@ -4,6 +4,7 @@ sslwm/
 stegam/
 arwganm/
 sslw_tmp/
+coins_full/
 
 # aux files created at runtime
 aux*.png
