@@ -801,17 +801,9 @@ def extract_watermark(image, wm_l=None, use_mask=False, tile_size=None, how=None
 def watermark_functional(img_orig, wm=None, w_method=None, tile_size=None):
     if wm is None: wm = [False] * 30
 
-    if w_method == 'ssl': w_method = ssl_watermarking(wm_l=len(wm))
-    elif w_method == 'blind': w_method = blind_watermarking(wm_l=len(wm))
-    elif w_method == 'trustmark': w_method = trustmark_watermarking(wm_l=len(wm))
-    elif w_method == 'dwtDct': w_method = invisible_watermarking(method='dwtDct', wm_l=len(wm))
-    elif w_method == 'dwtDctSvd': w_method = invisible_watermarking(method='dwtDctSvd', wm_l=len(wm))
-    elif w_method == 'rivaGan': w_method = invisible_watermarking(method='rivaGan', wm_l=len(wm))
-    elif w_method == 'stegastamp': w_method = stegastamp_watermarking(wm_l=len(wm))
-    elif w_method == 'arwgan': w_method = arwgan_watermarking(wm_l=len(wm))
-    else: return img_orig
+    if w_method is None: return img_orig
 
-    cv2.imwrite('tmp_in.png', img_orig)	
+    img_orig.save('tmp_in.png')	
     inject_watermark('tmp_in.png', wm=wm, image_out='tmp_out.png', tile_size=tile_size, how=w_method)
     return Image.open('tmp_out.png')
 
@@ -834,46 +826,14 @@ attacks_dict = {
     "sharpen": aug_functional.sharpen,
     "generic crop": aug_functional.crop,
     "aspect ratio": aug_functional.change_aspect_ratio,
-    "watermark": watermark_functional,
+    "re-watermark": watermark_functional,
 }
 
-# attacks to evaluate
-attacks = [{'attack': 'none'}] \
-    + [{'attack': 'watermark', 'w_method': 'ssl'}] \
-    + [[{'attack': 'blur', 'kernel_size': 21}, {'attack': 'resize', 'scale': 0.7}]] \
-    + [{'attack': 'aspect ratio', 'ratio': r} for r in [0.95, 0.85, 1.05, 1.15]] \
-    + [{'attack': 'generic crop', 'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2} for x1 in [0.25, 0] for x2 in [0.8, 1] for y1 in [0.3, 0] for y2 in [0.85, 1]] \
-    + [{'attack': 'vflip'}] \
-    + [{'attack': 'hflip'}] \
-    + [{'attack': 'sharpen', 'factor': f} for f in [1.5, 3, 7, 10]] \
-    + [{'attack': 'random noise', 'var': v} for v in [0.01, 0.02]] \
-    + [{'attack': 'overlay emoji', 'emoji_size': s, 'y_pos': 0.5} for s in [0.15, 0.25, 0.35]] \
-    + [{'attack': 'overlay emoji', 'emoji_path': 'data/wm_logo.png', 'y_pos': y, 'x_pos': x} for y in [0.5, 0.35, 0.65] for x in [0.4, 0.6]] \
-    + [{'attack': 'rotation', 'angle': r, 'fill': [255, 255, 255]} for r in [2, 15, 30, 45]] \
-    + [{'attack': 'center crop', 'scale': s} for s in [0.25, 0.35, 0.5, 0.75, 0.8, 1.2, 1.5]] \
-    + [{'attack': 'resize', 'scale': s} for s in [0.5, 0.75, 0.9, 1.1, 1.25]] \
-    + [{'attack': 'blur', 'kernel_size': h} for h in [5, 11, 15, 21]] \
-    + [{'attack': 'jpeg', 'quality': q} for q in [50, 75, 90, 95, 98, 100]] \
-    + [{'attack': 'contrast', 'contrast_factor': c} for c in [0.5, 1., 1.5, 2.]] \
-    + [{'attack': 'brightness', 'brightness_factor': b} for b in [0.5, 1., 1.5, 2.]] \
-    + [{'attack': 'hue', 'hue_factor': h} for h in [-0.5, -0.25, 0.25, 0.5]] \
-
-# coin images input path prefix
-ipath = 'coins'
-
-# watermarked coin images output path prefix
-opath = 'wm_coins'
-
 # watermark key
-orig_w = "01001101"
+# coins = 3 - 15 - 9 - 14 -19
+orig_w = "0001101111010010111010011"
 wm = [True if v == '1' else False for v in orig_w]
 l = len(wm)
-
-# border to increase the bounding box when removing the white background 
-b = 25
-
-# tile size
-tl = None
 
 # watermarking methods to test
 w_methods = [
@@ -886,6 +846,38 @@ w_methods = [
     stegastamp_watermarking(wm_l=l),
     arwgan_watermarking(wm_l=l),
     ]
+
+# attacks to evaluate
+attacks = [{'attack': 'none'}] \
+    + [{'attack': 'aspect ratio', 'ratio': r} for r in [0.75, 0.85, 0.95, 1.05, 1.15, 1.25]] \
+    + [{'attack': 'resize', 'scale': s} for s in [0.5, 0.75, 0.9, 1.1, 1.25]] \
+    + [{'attack': 'generic crop', 'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2} for x1 in [0.25, 0] for x2 in [0.8, 1] for y1 in [0.3, 0] for y2 in [0.85, 1]] \
+    + [{'attack': 'center crop', 'scale': s} for s in [0.25, 0.35, 0.5, 0.75, 0.8, 1.2, 1.5]] \
+    + [{'attack': 'vflip'}] \
+    + [{'attack': 'hflip'}] \
+    + [{'attack': 'overlay emoji', 'emoji_size': s, 'y_pos': y, 'x_pos': x} for s in [0.15, 0.25, 0.35] for y in [0.5, 0.2] for x in [0.5, 0.7]] \
+    + [{'attack': 'overlay emoji', 'emoji_path': 'data/wm_logo.png', 'y_pos': y, 'x_pos': x} for y in [0.5, 0.1, 0.35, 0.65] for x in [0.1, 0.4, 0.6]] \
+    + [{'attack': 'rotation', 'angle': r, 'fill': [255, 255, 255]} for r in [2, 15, 30, 45]] \
+    + [{'attack': 're-watermark', 'wm': [False] * l, 'w_method': method} for method in w_methods] \
+    + [{'attack': 'sharpen', 'factor': f} for f in [1.5, 3, 7, 10]] \
+    + [{'attack': 'random noise', 'var': v} for v in [0.01, 0.02]] \
+    + [{'attack': 'blur', 'kernel_size': h} for h in [5, 11, 15, 21]] \
+    + [{'attack': 'jpeg', 'quality': q} for q in [20, 50, 75, 90, 95, 98, 100]] \
+    + [{'attack': 'contrast', 'contrast_factor': c} for c in [0.5, 1., 1.5, 2.]] \
+    + [{'attack': 'brightness', 'brightness_factor': b} for b in [0.5, 1., 1.5, 2.]] \
+    + [{'attack': 'hue', 'hue_factor': h} for h in [-0.5, -0.25, 0.25, 0.5]] \
+
+# coin images input path prefix
+ipath = 'coins'
+
+# watermarked coin images output path prefix
+opath = 'wm_coins'
+
+# border to increase the bounding box when removing the white background 
+b = 25
+
+# tile size
+tl = None
 
 # remove background
 crop_image = True
@@ -935,7 +927,7 @@ for image in images:
     
         qt = {}
         for q, full_attack in enumerate(attacks):
-            t_image = 'mod.png'
+            t_image = str(q) + 'mod.png'
             tw_image = ow_image
     
             if not isinstance(full_attack, list): full_attack = [full_attack]
@@ -944,7 +936,14 @@ for image in images:
             for q_, attack in enumerate(full_attack):    
                 attack = attack.copy()
                 attack_name = attack.pop('attack')
-                full_attack_name += ('+' if q_ else '') + attack_name
+
+                params = []
+                for pk in attack.keys():
+                    if isinstance(attack[pk], (int,float)): params.append(str(attack[pk]))
+                    elif pk == 'w_method': params.append(attack[pk].name())
+                params = '(' + ','.join(params)  + ')' if len(params) else ''
+
+                full_attack_name += ('+' if q_ else '') + attack_name + params
                 
                 tw_image = attacks_dict[attack_name](tw_image, **attack)
                 tw_image.save(t_image)
@@ -959,15 +958,15 @@ for image in images:
                 extr_w = "".join(["1" if extracted_wm[i] else "0" for i in range(len(extracted_wm))])
                 v = np.sum(np.asarray(wm) == np.asarray(extracted_wm)) / l    
         
-            qt[full_attack_name + " (" + str(q)  + ")"] = {'msg': extr_w, 'correct bits': v}
+            qt[full_attack_name + " - " + str(q)] = {'msg': extr_w, 'correct bits': v}
         
             print(f'{str(q)}.[{full_attack_name}]("{k}"): retrieved message = {extr_w}; {"Pass" if (v == 1) else "Failed"}')
 
-            os.remove('mod.png')
+            os.remove(t_image)
                     
         qv[k][w]['validation'] = qt
 
-    os.remove('input_image.png')
+    if os.path.isfile('input_image.png'): os.remove('input_image.png')
 
 with open(datetime.today().strftime('%Y-%m-%d-%H:%M:%S') + '.pkl', 'wb') as f:
     pickle.dump(qv, f)          
