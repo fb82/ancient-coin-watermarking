@@ -798,6 +798,24 @@ def extract_watermark(image, wm_l=None, use_mask=False, tile_size=None, how=None
     return [w[i] == '1' for i in range(len(w))]     
 
 
+def watermark_functional(img_orig, wm=None, w_method=None, tile_size=None):
+    if wm is None: wm = [False] * 30
+
+    if w_method == 'ssl': w_method = ssl_watermarking(wm_l=len(wm))
+    elif w_method == 'blind': w_method = blind_watermarking(wm_l=len(wm))
+    elif w_method == 'trustmark': w_method = trustmark_watermarking(wm_l=len(wm))
+    elif w_method == 'dwtDct': w_method = invisible_watermarking(method='dwtDct', wm_l=len(wm))
+    elif w_method == 'dwtDctSvd': w_method = invisible_watermarking(method='dwtDctSvd', wm_l=len(wm))
+    elif w_method == 'rivaGan': w_method = invisible_watermarking(method='rivaGan', wm_l=len(wm))
+    elif w_method == 'stegastamp': w_method = stegastamp_watermarking(wm_l=len(wm))
+    elif w_method == 'arwgan': w_method = arwgan_watermarking(wm_l=len(wm))
+    else: return img_orig
+
+    cv2.imwrite('tmp_in.png', img_orig)	
+    inject_watermark('tmp_in.png', wm=wm, image_out='tmp_out.png', tile_size=tile_size, how=w_method)
+    return Image.open('tmp_out.png')
+
+
 attacks_dict = {
     "none": lambda x : x,
     "rotation": functional.rotate,
@@ -816,10 +834,12 @@ attacks_dict = {
     "sharpen": aug_functional.sharpen,
     "generic crop": aug_functional.crop,
     "aspect ratio": aug_functional.change_aspect_ratio,
+    "watermark": watermark_functional,
 }
 
 # attacks to evaluate
 attacks = [{'attack': 'none'}] \
+    + [{'attack': 'watermark', 'w_method': 'ssl'}] \
     + [[{'attack': 'blur', 'kernel_size': 21}, {'attack': 'resize', 'scale': 0.7}]] \
     + [{'attack': 'aspect ratio', 'ratio': r} for r in [0.95, 0.85, 1.05, 1.15]] \
     + [{'attack': 'generic crop', 'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2} for x1 in [0.25, 0] for x2 in [0.8, 1] for y1 in [0.3, 0] for y2 in [0.85, 1]] \
