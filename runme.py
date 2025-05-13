@@ -186,7 +186,8 @@ class trustmark_watermarking:
             return None
       
 
-from blind_watermark import WaterMark
+from blind_watermark import WaterMark, bw_notes
+bw_notes.close()
 
 class blind_watermarking:
     def name(self):
@@ -734,6 +735,8 @@ def inject_watermark(image_in, image_out='blind_watermark.jpg', wm=[True, False]
     if tile_size is None:
         tile_size = img.shape[:2]
 
+    if not isinstance(how, list): how = [how]
+
     for i in range(0, img.shape[0], tile_size[0]):
         for j in range(0, img.shape[1], tile_size[1]):
             ii = i+tile_size[0]
@@ -741,8 +744,9 @@ def inject_watermark(image_in, image_out='blind_watermark.jpg', wm=[True, False]
             
             if (ii > img.shape[0]) or (jj > img.shape[1]): continue
                 
-            tile = img[i:ii, j:jj]            
-            img[i:ii, j:jj] = how.embed(tile, wm=wm)
+            tile = img[i:ii, j:jj]
+            for hv in how: tile = hv.embed(tile, wm=wm)                    
+            img[i:ii, j:jj] = tile
     
     if use_mask:
         orig[bbox[2]:bbox[3], bbox[0]:bbox[1]] = img
@@ -764,9 +768,11 @@ def extract_watermark(image, wm_l=None, use_mask=False, tile_size=None, how=None
         
     if tile_size is None:
         tile_size = img.shape[:2]
-        
-    h = {}
 
+    if not isinstance(how, list): how = [how]
+    h = []
+    for k in range(len(how)): h.append({})
+	
     if tile_size[0] == 0:
         print("doh!")
 
@@ -779,23 +785,30 @@ def extract_watermark(image, wm_l=None, use_mask=False, tile_size=None, how=None
                 
             tile = img[i:ii, j:jj]
 
-            wm_extract = how.extract(tile, wm_l=wm_l)
+            wm_extract = []
+            for hv in how: wm_extract.append(hv.extract(tile, wm_l=wm_l))            
 
-            if wm_extract is None: continue
+            for k in range(len(how)):
+                if wm_extract[k] is None: continue
 
-            l = ('').join(['0' if not(i) else '1' for i in wm_extract])
+                l = ('').join(['0' if not(i) else '1' for i in wm_extract[k]])
 
-            if l in h: h[l] += 1
-            else: h[l] = 1            
+                if l in h[k]: h[k][l] += 1
+                else: h[k][l] = 1            
+
+    rval = []
+
+    for k in range(len(how)):
+        if len(h[k]) == 0: continue
             
-    if len(h) == 0: return None
-            
-    kk = list(h.keys())
-    v = np.asarray([h[k] for k in kk])
-    s = np.argsort(-v)[0]    
-    w = kk[s]
+        kk = list(h[k].keys())
+        v = np.asarray([h[k][i] for i in kk])
+        s = np.argsort(-v)[0]    
+        w = kk[s]
         
-    return [w[i] == '1' for i in range(len(w))]     
+        rval.append([w[i] == '1' for i in range(len(w))])     
+
+    return rval
 
 
 def watermark_functional(img_orig, wm=None, w_method=None, tile_size=None):
@@ -835,8 +848,8 @@ orig_w = "0001101111010010111010011"
 wm = [True if v == '1' else False for v in orig_w]
 l = len(wm)
 
-# watermarking methods to test
-w_methods = [
+# watermarking methods initialization
+w_list = [
     ssl_watermarking(wm_l=l),
     blind_watermarking(wm_l=l),
     trustmark_watermarking(wm_l=l),
@@ -846,6 +859,14 @@ w_methods = [
     stegastamp_watermarking(wm_l=l),
     arwgan_watermarking(wm_l=l),
     ]
+
+# watermarking methods to test
+w_methods = []
+for w_el1 in w_list:
+    for w_el2 in w_list:
+        if w_el1.name() == w_el2.name(): continue
+        w_methods.append([w_el1, w_el2]) 
+w_methods = [w_el for w_el in w_list] + w_methods
 
 # attacks to evaluate
 attacks = [{'attack': 'none'}] \
@@ -858,7 +879,7 @@ attacks = [{'attack': 'none'}] \
     + [{'attack': 'overlay emoji', 'emoji_size': s, 'y_pos': y, 'x_pos': x} for s in [0.15, 0.25, 0.35] for y in [0.5, 0.2] for x in [0.5, 0.7]] \
     + [{'attack': 'overlay emoji', 'emoji_path': 'data/wm_logo.png', 'y_pos': y, 'x_pos': x} for y in [0.5, 0.1, 0.35, 0.65] for x in [0.1, 0.4, 0.6]] \
     + [{'attack': 'rotation', 'angle': r, 'fill': [255, 255, 255]} for r in [2, 15, 30, 45]] \
-    + [{'attack': 're-watermark', 'wm': [False] * l, 'w_method': method} for method in w_methods] \
+    + [{'attack': 're-watermark', 'wm': [False] * l, 'w_method': method} for method in w_list] \
     + [{'attack': 'sharpen', 'factor': f} for f in [1.5, 3, 7, 10]] \
     + [{'attack': 'random noise', 'var': v} for v in [0.01, 0.02]] \
     + [{'attack': 'blur', 'kernel_size': h} for h in [5, 11, 15, 21]] \
@@ -868,10 +889,10 @@ attacks = [{'attack': 'none'}] \
     + [{'attack': 'hue', 'hue_factor': h} for h in [-0.5, -0.25, 0.25, 0.5]] \
 
 # coin images input path prefix
-ipath = 'coins'
+ipath = 'coins' # + '_full'
 
 # watermarked coin images output path prefix
-opath = 'wm_coins'
+opath = 'wm_' + ipath
 
 # border to increase the bounding box when removing the white background 
 b = 25
@@ -884,6 +905,9 @@ crop_image = True
 
 # save watermarked output as unlossy
 unlossy = True
+
+# out file name
+out_file = datetime.today().strftime('%Y-%m-%d-%H:%M:%S') + '.pkl'
 
 qv = {}
 images = list_images(ipath)
@@ -904,8 +928,13 @@ for image in images:
 
     k = os.path.splitext(os.path.split(image)[-1])[0]
     qv[k] = {}        
-    for w_method in w_methods: 
-        opath_ = opath + ' ' + w_method.name()
+    for w_method in w_methods:
+        if isinstance(w_method, list):
+            w = '+'.join([ww_method.name() for ww_method in w_method])
+        else:
+            w = w_method.name()
+        
+        opath_ = opath + ' ' + w
         os.makedirs(opath_, exist_ok=True)
 
         omage = os.path.join(opath_, os.path.split(image)[-1])
@@ -918,10 +947,9 @@ for image in images:
         PSNR = psnr(im_orig, ow_image)
         SSIM = ssim(im_orig, ow_image)
         
-        w = w_method.name()
         qv[k][w] = {'PSNR': PSNR, 'SSIM': SSIM}
         
-        print(f'{w}("{os.path.split(image)[-1]}"): message = "{orig_w}"; PSNR = {PSNR:.3f}; SSIM = {SSIM *100:.3f} %')
+        print(f'{w} on "{os.path.split(image)[-1]}": message = "{orig_w}"; PSNR = {PSNR:.3f}; SSIM = {SSIM *100:.3f} %')
     
         ow_image = Image.open(omage)
     
@@ -951,12 +979,14 @@ for image in images:
     
             extracted_wm = extract_watermark(t_image, tile_size=tl, how=w_method)
               
-            if extracted_wm is None:
-                extr_w = None
-                v = 0
-            else:
-                extr_w = "".join(["1" if extracted_wm[i] else "0" for i in range(len(extracted_wm))])
-                v = np.sum(np.asarray(wm) == np.asarray(extracted_wm)) / l    
+            v = 0
+            extr_w = None
+            for ii in range(len(extracted_wm)):
+                extr_w_ = "".join(["1" if extracted_wm[ii][i] else "0" for i in range(len(extracted_wm[ii]))])
+                v_ = np.sum(np.asarray(wm) == np.asarray(extracted_wm[ii])) / l
+                if v_ > v:
+                    v = v_
+                    extr_w = extr_w_    
         
             qt[full_attack_name + " - " + str(q)] = {'msg': extr_w, 'correct bits': v}
         
@@ -966,8 +996,8 @@ for image in images:
                     
         qv[k][w]['validation'] = qt
 
-    if os.path.isfile('input_image.png'): os.remove('input_image.png')
+        with open(out_file, 'wb') as f:
+            pickle.dump(qv, f)          
 
-with open(datetime.today().strftime('%Y-%m-%d-%H:%M:%S') + '.pkl', 'wb') as f:
-    pickle.dump(qv, f)          
+    if os.path.isfile('input_image.png'): os.remove('input_image.png')
         
