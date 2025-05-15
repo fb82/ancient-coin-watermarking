@@ -97,7 +97,7 @@ for method in methods:
             continue
 
         if 'PSNR' in data[coin][method]:     
-            row['psnr'] += data[coin][method]['PSNR']
+            row['psnr'] += data[coin][method]['PSNR'] / 100
 
         if 'SSIM' in data[coin][method]:       
             row['ssim'] += data[coin][method]['SSIM']
