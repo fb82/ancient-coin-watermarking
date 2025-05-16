@@ -1,0 +1,20 @@
+method;psnr;ssim
+ssl watermarking; 42.04; 99.18
+blind watermarking; 38.94; 98.27
+trustmark watermarking; 46.73; 99.88
+dwtDct watermarking; 41.03; 98.77
+dwtDctSvd watermarking; 41.22; 99.26
+rivaGan watermarking; 40.52; 99.18
+stegastamp watermarking; 33.09; 97.77
+arwgan watermarking; 39.93; 98.78
+ssl + rivaGan watermarking; 38.25; 98.37
+ssl + arwgan watermarking; 37.61; 97.82
+blind + rivaGan watermarking; 36.73; 97.46
+trustmark + ssl watermarking; 40.66; 98.96
+rivaGan + ssl watermarking; 38.13; 98.29
+rivaGan + blind watermarking; 35.61; 95.98
+rivaGan + stegastamp watermarking; 32.36; 97.02
+stegastamp + ssl watermarking; 32.50; 97.01
+stegastamp + trustmark watermarking; 32.87; 97.66
+stegastamp + rivaGan watermarking; 32.37; 97.03
+arwgan + ssl watermarking; 37.76; 97.99

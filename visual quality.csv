@@ -1,0 +1,65 @@
+method;psnr;ssim
+ssl watermarking; 42.04; 99.18
+blind watermarking; 38.94; 98.27
+trustmark watermarking; 46.73; 99.88
+dwtDct watermarking; 41.03; 98.77
+dwtDctSvd watermarking; 41.22; 99.26
+rivaGan watermarking; 40.52; 99.18
+stegastamp watermarking; 33.09; 97.77
+arwgan watermarking; 39.93; 98.78
+ssl + blind watermarking; 37.12; 97.24
+ssl + trustmark watermarking; 40.57; 99.10
+ssl + dwtDct watermarking; 38.37; 97.90
+ssl + dwtDctSvd watermarking; 38.45; 98.34
+ssl + rivaGan watermarking; 38.25; 98.37
+ssl + stegastamp watermarking; 32.49; 96.96
+ssl + arwgan watermarking; 37.61; 97.82
+blind + ssl watermarking; 37.25; 97.46
+blind + trustmark watermarking; 37.90; 98.24
+blind + dwtDct watermarking; 36.78; 97.21
+blind + dwtDctSvd watermarking; 36.59; 97.43
+blind + rivaGan watermarking; 36.73; 97.46
+blind + stegastamp watermarking; 31.95; 96.10
+blind + arwgan watermarking; 36.02; 96.73
+trustmark + ssl watermarking; 40.66; 98.96
+trustmark + blind watermarking; 38.33; 97.96
+trustmark + dwtDct watermarking; 39.96; 98.59
+trustmark + dwtDctSvd watermarking; 40.04; 99.02
+trustmark + rivaGan watermarking; 38.90; 98.99
+trustmark + stegastamp watermarking; 32.85; 97.65
+trustmark + arwgan watermarking; 38.87; 98.42
+dwtDct + ssl watermarking; 38.50; 97.98
+dwtDct + blind watermarking; 36.82; 96.78
+dwtDct + trustmark watermarking; 40.02; 98.68
+dwtDct + dwtDctSvd watermarking; 39.38; 98.53
+dwtDct + rivaGan watermarking; 37.86; 98.05
+dwtDct + stegastamp watermarking; 32.30; 96.60
+dwtDct + arwgan watermarking; 37.82; 97.63
+dwtDctSvd + ssl watermarking; 38.63; 98.46
+dwtDctSvd + blind watermarking; 35.59; 96.23
+dwtDctSvd + trustmark watermarking; 39.96; 99.17
+dwtDctSvd + dwtDct watermarking; 39.37; 98.56
+dwtDctSvd + rivaGan watermarking; 37.85; 98.48
+dwtDctSvd + stegastamp watermarking; 32.35; 97.07
+dwtDctSvd + arwgan watermarking; 37.56; 98.00
+rivaGan + ssl watermarking; 38.13; 98.29
+rivaGan + blind watermarking; 35.61; 95.98
+rivaGan + trustmark watermarking; 38.81; 99.13
+rivaGan + dwtDct watermarking; 37.73; 97.84
+rivaGan + dwtDctSvd watermarking; 37.88; 98.26
+rivaGan + stegastamp watermarking; 32.36; 97.02
+rivaGan + arwgan watermarking; 36.88; 97.84
+stegastamp + ssl watermarking; 32.50; 97.01
+stegastamp + blind watermarking; 31.97; 96.16
+stegastamp + trustmark watermarking; 32.87; 97.66
+stegastamp + dwtDct watermarking; 32.32; 96.62
+stegastamp + dwtDctSvd watermarking; 32.35; 97.08
+stegastamp + rivaGan watermarking; 32.37; 97.03
+stegastamp + arwgan watermarking; 32.12; 96.55
+arwgan + ssl watermarking; 37.76; 97.99
+arwgan + blind watermarking; 36.31; 97.05
+arwgan + trustmark watermarking; 39.02; 98.68
+arwgan + dwtDct watermarking; 37.33; 97.59
+arwgan + dwtDctSvd watermarking; 37.44; 98.04
+arwgan + rivaGan watermarking; 37.08; 98.00
+arwgan + stegastamp watermarking; 31.96; 96.37

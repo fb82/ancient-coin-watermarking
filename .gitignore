@@ -11,8 +11,8 @@ aux*.png
 mod*.png
 tmp*.png
 input_image.png
-*.pkl
-*.csv
+# *.pkl
+# *.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
