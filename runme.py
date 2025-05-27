@@ -889,7 +889,7 @@ attacks = [{'attack': 'none'}] \
     + [{'attack': 'hue', 'hue_factor': h} for h in [-0.5, -0.25, 0.25, 0.5]] \
 
 # coin images input path prefix
-ipath = 'coins' + '_full'
+ipath = 'coins' # + '_full'
 
 # watermarked coin images output path prefix
 opath = 'wm_' + ipath

@@ -932,7 +932,7 @@ for i0 in range(len(shape_rotation_attacks)):
 attacks = attacks[::2]
 
 # coin images input path prefix
-ipath = 'coins' + '_full'
+ipath = 'coins' # + '_full'
 
 # watermarked coin images output path prefix
 opath = 'wm_' + ipath
