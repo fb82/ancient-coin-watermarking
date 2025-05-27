@@ -903,7 +903,7 @@ overlay_attacks = [] \
 
 photometric_attacks = [] \
     + [{'attack': 'none'}] \
-    + [{'attack': 're-watermark', 'wm': [False] * l, 'w_method': method} for method in w_list if not((method.name() == "dwtDctSvd watermarking") or (method.name() == "dwtDct watermarking"))] \
+    + [{'attack': 're-watermark', 'wm': [False] * l, 'w_method': method} for method in w_list if not((method.name() == "stegastamp watermarking") or (method.name() == "dwtDctSvd watermarking") or (method.name() == "dwtDct watermarking"))] \
     + [{'attack': 'sharpen', 'factor': f} for f in [1.5, 7, 10]] \
     + [{'attack': 'random noise', 'var': v} for v in [0.01, 0.02]] \
     + [{'attack': 'blur', 'kernel_size': h} for h in [11, 21]] \
@@ -929,10 +929,10 @@ for i0 in range(len(shape_rotation_attacks)):
                 (photometric_attacks[i2]['attack'] == 'none') >= 2: continue
             attacks.append([shape_rotation_attacks[i0], overlay_attacks[i1], photometric_attacks[i2]])
 
-attacks = attacks[::3]
+attacks = attacks[::2]
 
 # coin images input path prefix
-ipath = 'coins' # + '_full'
+ipath = 'coins' + '_full'
 
 # watermarked coin images output path prefix
 opath = 'wm_' + ipath
@@ -954,7 +954,7 @@ out_file = datetime.today().strftime('%Y-%m-%d-%H:%M:%S') + '.pkl'
 
 qv = {}
 qv['message'] = orig_w
-images = list_images(ipath)[::3]
+images = list_images(ipath)[::2]
 for image in images:
     if crop_image:
         in_image = 'input_image.png'
