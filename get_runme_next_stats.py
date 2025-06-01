@@ -210,11 +210,11 @@ pd.DataFrame(v1).to_csv('visual quality - multiple transformations (reduced tabl
 
 v2 = {'method': [m.replace(' watermarking+',' + ') for m in r_labels]}
 for i in [2]: v2[clean_ts(c_labels[i])] = m[:, i]
-for i in [3]: v2[clean_ts(c_labels[i]) + ' (rank)' ] = get_rank(m_idx[:, i],m_idx_[:, i])
+for i in [2]: v2[clean_ts(c_labels[i]) + ' (rank)' ] = get_rank(m_idx[:, i],m_idx_[:, i])
 pd.DataFrame(v2).iloc[:, list(range(0, 3))].to_csv('message error - multiple transformations (reduced table).csv', sep=';', float_format=lambda s: "{: 6.2f}".format(s*100), index=False)       
 
 v3 = {'method': [m.replace(' watermarking+',' + ') for m in r_labels]}
-for i in [2]: v3[clean_ts(c_labels[i])] = m[:, i]
+for i in [3]: v3[clean_ts(c_labels[i])] = m[:, i]
 for i in [3]: v3[clean_ts(c_labels[i]) + ' (rank)' ] = get_rank(m_idx[:, i],m_idx_[:, i])
 pd.DataFrame(v3).iloc[:, list(range(0, 3))].to_csv('success rate - multiple transformations (reduced table).csv', sep=';', float_format=lambda s: "{: 6.2f}".format(s*100), index=False)       
 
